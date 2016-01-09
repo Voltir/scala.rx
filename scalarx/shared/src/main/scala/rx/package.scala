@@ -56,8 +56,8 @@ package object rx {
     /**
      * Creates a new [[Rx]] which depends on this one's value, transformed by `f`.
      */
-    def map[V](f: M[T] => M[V])(implicit ctx: RxCtx) = Rx.build { implicit innerCtx =>
-      n.Internal.addDownstream(innerCtx)
+    def map[V](f: M[T] => M[V])(implicit ctx: RxCtx) = Rx.build { implicit inner =>
+      n.Internal.addDownstream(inner)
       normFunc(f(valFunc(n)))
     }(ctx)
 
