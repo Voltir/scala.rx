@@ -1,6 +1,6 @@
 package rx.ops
 
-import rx.{RxCtx, Var, Rx}
+import rx.{RxCtx, Rx}
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration.{Deadline, FiniteDuration}
