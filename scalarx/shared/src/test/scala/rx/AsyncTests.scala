@@ -1,7 +1,7 @@
 package rx
 
 import utest._
-import rx.ops.OPS._
+import rx.async._
 import scala.concurrent.{ExecutionContext, Promise}
 
 object AsyncTests extends TestSuite {

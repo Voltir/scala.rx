@@ -2,7 +2,7 @@ package rx
 
 import java.util.concurrent.{FutureTask, ScheduledExecutorService, TimeUnit}
 
-import rx.ops.{Cancelable, Scheduler}
+import rx.async.{Scheduler, Cancelable}
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._

@@ -1,6 +1,6 @@
 package rx
 
-import rx.ops.{Scheduler, Cancelable}
+import rx.async.{Scheduler, Cancelable}
 
 import scala.concurrent.duration._
 

@@ -1,4 +1,4 @@
-package rx.ops
+package rx.async
 
 trait Cancelable {
   def cancel(): Boolean

@@ -2,7 +2,7 @@ package rx
 
 import java.util.concurrent.Executors
 
-import rx.ops.Scheduler
+import rx.async.Scheduler
 
 import scala.concurrent.ExecutionContext
 
