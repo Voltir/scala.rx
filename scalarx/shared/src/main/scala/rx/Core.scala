@@ -1,5 +1,6 @@
 package rx
 
+import scala.annotation.compileTimeOnly
 import scala.language.experimental.macros
 import scala.collection.mutable
 import scala.reflect.macros.Context
@@ -75,6 +76,9 @@ sealed trait Node[+T] { self =>
     Internal.observers.add(o)
     o
   }
+
+  def toRx(implicit ctx: RxCtx): Rx[T]
+
   override def toString() = s"${super.toString}($now)"
 }
 object Node{
@@ -152,7 +156,7 @@ class Var[T](initialValue: T) extends Node[T]{
     var value = initialValue
   }
 
-  def now = Internal.value
+  override def now = Internal.value
 
   /**
    * Sets the value of this [[Var]] and runs any triggers/notifies
@@ -166,7 +170,9 @@ class Var[T](initialValue: T) extends Node[T]{
     }
   }
 
-  def kill() = {
+  override def toRx(implicit ctx: RxCtx): Rx[T] = Rx.build { inner => this.apply()(inner) }(ctx)
+
+  override def kill() = {
     Internal.clearDownstream()
   }
 }
@@ -180,30 +186,16 @@ object Rx{
    * track of which other [[Node]]s are used within that block (via their
    * `apply` methods) so this [[Rx]] can recalculate when upstream changes.
    */
-  def apply[T](func: => T)(implicit curCtx: rx.RxCtx): Rx[T] = macro buildMacro[T]
+  def apply[T](func: => T)(implicit curCtx: rx.RxCtx): Rx[T] = macro Macros.buildMacro[T]
 
-  def buildMacro[T: c.WeakTypeTag](c: Context)(func: c.Expr[T])(curCtx: c.Expr[rx.RxCtx]): c.Expr[Rx[T]] = {
-    import c.universe._
-
-    val ctxName =  c.fresh[TermName]("rxctx")
-
-    object transformer extends c.universe.Transformer {
-      override def transform(tree: c.Tree): c.Tree = {
-        if (c.weakTypeOf[RxCtx.Unsafe.type] == tree.tpe) q"$ctxName"
-        else if(curCtx.tree.toString() == tree.toString()) q"$ctxName"
-        else super.transform(tree)
-      }
-    }
-    val res = q"rx.Rx.build{$ctxName: rx.RxCtx => ${transformer.transform(func.tree)}}($curCtx)"
-
-    c.Expr[Rx[T]](c.resetLocalAttrs(res))
-  }
+  def unsafe[T](func: => T): Rx[T] = macro Macros.buildUnsafe[T]
 
   /**
    * Constructs a new [[Rx]] from an expression (which explicitly takes an
    * [[RxCtx]]) and an optional `owner` [[RxCtx]].
    */
   def build[T](func: RxCtx => T)(implicit owner: RxCtx): Rx[T] = {
+    require(owner != null, "owning RxCtx was null! Perhaps mark the caller lazy?")
     new Rx(func, if(owner == RxCtx.Unsafe) None else Some(owner))
   }
 }
@@ -257,7 +249,7 @@ class Rx[+T](func: RxCtx => T, owner: Option[RxCtx]) extends Node[T] { self =>
 
   Internal.update()
 
-  def now = cached.get
+  override def now = cached.get
 
   /**
    * @return the current value of this [[Rx]] as a `Try`
@@ -268,9 +260,13 @@ class Rx[+T](func: RxCtx => T, owner: Option[RxCtx]) extends Node[T] { self =>
     Internal.dead = true
     Internal.clearDownstream()
     Internal.clearUpstream()
+    Internal.owned.foreach(_.ownerKilled())
+    Internal.owned.clear()
   }
 
-  def kill(): Unit = {
+  override def toRx(implicit ctx: RxCtx): Rx[T] = Rx.build { inner => this.apply()(inner) }(ctx)
+
+  override def kill(): Unit = {
     owner.foreach(_.rx.Internal.owned.remove(this))
     ownerKilled()
   }
@@ -287,11 +283,26 @@ class Rx[+T](func: RxCtx => T, owner: Option[RxCtx]) extends Node[T] { self =>
       Node.doRecalc(Internal.downStream, Internal.observers)
   }
 }
-object RxCtx{
-  implicit object Unsafe extends RxCtx(throw new Exception(
+
+object RxCtx {
+  object Unsafe extends RxCtx(throw new Exception(
     "Invalid RxCtx: you can only call `Rx.apply` within an " +
     "`Rx{...}` block or where an implicit `RxCtx` is available"
   ))
+
+  def safe(): RxCtx = macro Macros.buildSafeCtx
+
+  @compileTimeOnly("No implicit RxCtx is available here!")
+  object CompileTime extends RxCtx(throw new Exception())
+
+  /**
+   * Dark magic. End result is the implicit ctx will be one of
+   *  1) The enclosing RxCtx, if it exists
+   *  2) RxCtx.Unsafe, if in a "static context"
+   *  3) RxCtx.CompileTime, if in a "dynamic context" (other macros will rewrite CompileTime away)
+   */
+  @compileTimeOnly("@}}>---: A rose by any other name.")
+  implicit def voodoo: RxCtx = macro Macros.buildImplicitRxCtx
 }
 
 /**

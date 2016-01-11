@@ -11,13 +11,15 @@ object AsyncTests extends TestSuite {
     def execute(runnable: Runnable) {runnable.run()}
   }
 
+  implicit val testctx = RxCtx.safe()
+
   def tests = TestSuite {
     "async" - {
       "basicExample" - {
         val p = Promise[Int]()
         val a = p.future.toRx(10)
         p.success(5)
-        assert(a() == 5)
+        assert(a.now == 5)
       }
       "repeatedlySendingOutFutures" - {
         var p = Promise[Int]()
