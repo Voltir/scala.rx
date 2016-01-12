@@ -40,7 +40,7 @@ package object rx {
      */
     def filter(f: M[T] => Boolean)(implicit ctx: RxCtx): Rx[T] =  {
       var init = true
-      lazy val ret: Rx[T] = Rx.build[T] { implicit innerCtx: RxCtx =>
+      lazy val ret: Rx[T] = Rx.build[T] { innerCtx: RxCtx =>
         n.Internal.addDownstream(innerCtx)
         val v = valFunc(n)
         if (f(v) || init) {
@@ -56,7 +56,7 @@ package object rx {
     /**
      * Creates a new [[Rx]] which depends on this one's value, transformed by `f`.
      */
-    def map[V](f: M[T] => M[V])(implicit ctx: RxCtx) = Rx.build { implicit inner =>
+    def map[V](f: M[T] => M[V])(implicit ctx: RxCtx) = Rx.build { inner =>
       n.Internal.addDownstream(inner)
       normFunc(f(valFunc(n)))
     }(ctx)
@@ -67,7 +67,7 @@ package object rx {
      */
     def fold[V](start: M[V])(f: (M[V], M[T]) => M[V])(implicit ctx: RxCtx) = {
       var prev = start
-      Rx.build { implicit innerCtx =>
+      Rx.build { innerCtx =>
         prev = f(prev, valFunc(n))
         normFunc(prev)
       }(ctx)
@@ -79,7 +79,7 @@ package object rx {
     def reduce(f: (M[T], M[T]) => M[T])(implicit ctx: RxCtx) = {
       var init = true
       var prev = valFunc(n)
-      Rx.build { implicit innerCtx =>
+      Rx.build { innerCtx =>
         n.Internal.addDownstream(innerCtx)
         if (init) {
           init = false
