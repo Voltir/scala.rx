@@ -170,7 +170,7 @@ class Var[T](initialValue: T) extends Node[T]{
     }
   }
 
-  override def toRx(implicit ctx: RxCtx): Rx[T] = Rx.build { inner => this.apply()(inner) }(ctx)
+  override def toRx(implicit ctx: RxCtx): Rx[T] = Rx.build { inner => apply()(inner) }(ctx)
 
   override def kill() = {
     Internal.clearDownstream()

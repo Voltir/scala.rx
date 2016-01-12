@@ -144,5 +144,16 @@ object EventedTests extends TestSuite {
         assert(count == 4)
       }
     }
+    "timer" - {
+      var count = 0
+      val timer = Timer(100.milli)
+      timer.foreach(i => count += 1)
+      eventually(count == 2)
+      eventually(count == 4)
+      timer.kill()
+      intercept[AssertionError] {
+        eventually(count == 6)
+      }
+    }
   }
 }

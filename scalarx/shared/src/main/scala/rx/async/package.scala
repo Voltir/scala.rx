@@ -58,6 +58,17 @@ package object async {
   }
 
   object Timer {
-    def apply(interval: FiniteDuration, delay: FiniteDuration): Rx[Long] = ???
+    import scala.concurrent.duration._
+    def apply(interval: FiniteDuration)(implicit scheduler: Scheduler, ctx: RxCtx): Rx[Long] = {
+      @volatile var tick = 0l
+      lazy val ret: Rx[Long] = Rx.build { inner =>
+        val task = scheduler.scheduleOnce(interval) {
+          tick += 1
+          ret.recalc()
+        }
+        tick
+      }(ctx)
+      ret
+    }
   }
 }
