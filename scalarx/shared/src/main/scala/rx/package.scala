@@ -4,6 +4,73 @@ import scala.util.Try
  * Created by haoyi on 12/13/14.
  */
 package object rx {
+
+
+  trait BaseOps {
+
+    /**
+     * Filters out invalid values of this [[Node]] which fail the boolean
+     * function `f`. Note that the initial (first) value of this [[Node]]
+     * cannot be filtered out, even if it fails the check.
+     */
+    protected def filter0[T, In <: Node[T],Out](in: In, output: In => Out)(f: Out => Boolean)(implicit ctx: RxCtx): Rx[Out] =  {
+      var init = true
+      lazy val ret: Rx[Out] = Rx.build[Out] { innerCtx: RxCtx =>
+        in.Internal.addDownstream(innerCtx)
+        val v = output(in)
+        if (f(v) || init) {
+          init = false
+          v
+        } else {
+          ret()(innerCtx)
+        }
+      }(ctx)
+      ret
+    }
+
+    /**
+     * Creates a new [[Rx]] which depends on this one's value, transformed by `f`.
+     */
+    protected def map0[T,V,In <: Node[T], Out](in: In, f: T => V)(mapped: (T => V) => Out)(implicit ctx: RxCtx): Rx[Out] =
+    Rx.build { inner =>
+      in.Internal.addDownstream(inner)
+      mapped(f)
+    }
+  }
+
+  class GenericTryOps[T](r: Rx[T]) extends BaseOps {
+    def mapZZ[V](f: T => V)(implicit ctx: RxCtx): Rx[Try[V]] =
+      map0[T,V,Rx[T],Try[V]](r,f) { fn => r.toTry.map(fn) }
+
+    def filterZZ(f: T => Boolean)(implicit ctx: RxCtx): Rx[Try[T]] =
+      filter0[T,Rx[T],Try[T]](r,_.toTry)(t => t.map(f).getOrElse(false))
+  }
+
+  class GenericOps2[T,N[T] <: Node[T]](n: N[T]) extends BaseOps {
+
+    def mapZ[V](f: T => V)(implicit ctx: RxCtx): Rx[V] =
+      map0[T,V,N[T],V](n, f) { fn => fn(n.now) }
+
+    def filterZ(f: T => Boolean)(implicit ctx: RxCtx): Rx[T] =
+      filter0[T,N[T],T](n,_.now)(t => f(t))
+  }
+
+  /**
+   * All [[Node]]s have a set of operations you can perform on them, e.g. `map` or `filter`
+   */
+  implicit class NodePlus3[T](n: Node[T]) extends GenericOps2[T,Node](n)
+
+  /**
+   * All [[Rx]]s have a set of operations you can perform on them via `myRx.all.*`,
+   * which lifts the operation to working on a `Try[T]` rather than plain `T`s
+   */
+  implicit class RxPlus3[T](n: Rx[T]) {
+
+    object allZ extends GenericTryOps[T](n)
+
+  }
+
+
   object Internal{
     abstract class GenericFunc[M[_], N[_]]{
       def apply[T](v: M[T]): N[T]

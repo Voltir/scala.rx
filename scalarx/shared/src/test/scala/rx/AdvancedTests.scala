@@ -258,13 +258,16 @@ object AdvancedTests extends TestSuite{
       "map" - {
         val a = Var(10)
         val b = Rx{ a() + 2 }
-        val c = a.map(_*2)
-        val d = b.map(_+3)
+        val c = a.mapZ(_*2)
+        val d = b.mapZ(_+3)
+        val e = a.mapZ(_*2).mapZ(_+3)
         assert(c.now == 20)
         assert(d.now == 15)
+        assert(e.now == 23)
         a() = 1
         assert(c.now == 2)
         assert(d.now == 6)
+        assert(e.now == 5)
       }
       "mapAll" - {
         val a = Var(10L)

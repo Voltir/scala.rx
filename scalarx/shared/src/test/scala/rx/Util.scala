@@ -2,6 +2,13 @@ package rx
 import acyclic.file
 
 object Util {
+
+  //Var(2).map(a => a).map(a => a).map(a => a)
+  //Var(1).mapM[Int](a => a).mapM[Int](a=>a).mapM[Int](a => 42 + a)
+  Var(1).mapZ(a => a).mapZ(a=>a).mapZ(a => 42 + a)
+  Var(2).mapZ(a => a).allZ.mapZZ(a => a + 34).allZ.mapZZ(a => a.map(3 + _))
+
+  //Var(2).m
   /**
    * Generates a short dataflow graph for testing
    */
