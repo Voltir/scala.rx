@@ -6,113 +6,21 @@ import scala.util.Try
 package object rx {
 
 
-  trait BaseOps {
+  trait GenericOps {
 
     /**
      * Filters out invalid values of this [[Node]] which fail the boolean
      * function `f`. Note that the initial (first) value of this [[Node]]
      * cannot be filtered out, even if it fails the check.
      */
-    protected def filter0[T, In <: Node[T],Out](in: In, output: In => Out)(f: Out => Boolean)(implicit ctx: RxCtx): Rx[Out] =  {
-      var init = true
-      lazy val ret: Rx[Out] = Rx.build[Out] { innerCtx: RxCtx =>
-        in.Internal.addDownstream(innerCtx)
-        val v = output(in)
-        if (f(v) || init) {
-          init = false
-          v
-        } else {
-          ret()(innerCtx)
-        }
-      }(ctx)
-      ret
-    }
-
-    /**
-     * Creates a new [[Rx]] which depends on this one's value, transformed by `f`.
-     */
-    protected def map0[T,V,In <: Node[T], Out](in: In, f: T => V)(mapped: (T => V) => Out)(implicit ctx: RxCtx): Rx[Out] =
-    Rx.build { inner =>
-      in.Internal.addDownstream(inner)
-      mapped(f)
-    }
-  }
-
-  class GenericTryOps[T](r: Rx[T]) extends BaseOps {
-    def mapZZ[V](f: T => V)(implicit ctx: RxCtx): Rx[Try[V]] =
-      map0[T,V,Rx[T],Try[V]](r,f) { fn => r.toTry.map(fn) }
-
-    def filterZZ(f: T => Boolean)(implicit ctx: RxCtx): Rx[Try[T]] =
-      filter0[T,Rx[T],Try[T]](r,_.toTry)(t => t.map(f).getOrElse(false))
-  }
-
-  class GenericOps2[T,N[T] <: Node[T]](n: N[T]) extends BaseOps {
-
-    def mapZ[V](f: T => V)(implicit ctx: RxCtx): Rx[V] =
-      map0[T,V,N[T],V](n, f) { fn => fn(n.now) }
-
-    def filterZ(f: T => Boolean)(implicit ctx: RxCtx): Rx[T] =
-      filter0[T,N[T],T](n,_.now)(t => f(t))
-  }
-
-  /**
-   * All [[Node]]s have a set of operations you can perform on them, e.g. `map` or `filter`
-   */
-  implicit class NodePlus3[T](n: Node[T]) extends GenericOps2[T,Node](n)
-
-  /**
-   * All [[Rx]]s have a set of operations you can perform on them via `myRx.all.*`,
-   * which lifts the operation to working on a `Try[T]` rather than plain `T`s
-   */
-  implicit class RxPlus3[T](n: Rx[T]) {
-
-    object allZ extends GenericTryOps[T](n)
-
-  }
-
-
-  object Internal{
-    abstract class GenericFunc[M[_], N[_]]{
-      def apply[T](v: M[T]): N[T]
-    }
-    object GenericFunc {
-      object Normal extends GenericFunc[Id, Id]{
-        def apply[T](v: Id[T]) = v
-      }
-      object Try extends GenericFunc[Try, Id]{
-        def apply[T](v: Try[T]) = v.get
-      }
-      object Apply extends GenericFunc[Node, Id]{
-        def apply[T](v: Node[T]) = v.now
-      }
-      object toTryMark extends GenericFunc[Rx, Try]{
-        def apply[T](v: Rx[T]) = {
-          v.toTry
-        }
-      }
-    }
-    type Id[T] = T
-  }
-  import Internal._
-
-  /**
-   * Operations that can take place on a [[Node]], in various arrangements
-   */
-  class GenericOps[M[_], N[_] <: Node[_], T]
-  (n: N[T], valFunc: GenericFunc[N, M], normFunc: GenericFunc[M, Id]){
-    /**
-     * Filters out invalid values of this [[Node]] which fail the boolean
-     * function `f`. Note that the initial (first) value of this [[Node]]
-     * cannot be filtered out, even if it fails the check.
-     */
-    def filter(f: M[T] => Boolean)(implicit ctx: RxCtx): Rx[T] =  {
+    protected def filter0[T, In <: Node[T], Chk](in: In, next: () => Chk)(f: Chk => Boolean)(implicit ctx: RxCtx): Rx[T] = {
       var init = true
       lazy val ret: Rx[T] = Rx.build[T] { innerCtx: RxCtx =>
-        n.Internal.addDownstream(innerCtx)
-        val v = valFunc(n)
+        in.Internal.addDownstream(innerCtx)
+        val v = next()
         if (f(v) || init) {
           init = false
-          normFunc(v)
+          in.now
         } else {
           ret()(innerCtx)
         }
@@ -123,37 +31,51 @@ package object rx {
     /**
      * Creates a new [[Rx]] which depends on this one's value, transformed by `f`.
      */
-    def map[V](f: M[T] => M[V])(implicit ctx: RxCtx) = Rx.build { inner =>
-      n.Internal.addDownstream(inner)
-      normFunc(f(valFunc(n)))
-    }(ctx)
+    protected def map0[T, V, In <: Node[T]](in: In)(mapped: () => V)(implicit ctx: RxCtx): Rx[V] = {
+      Rx.build { inner =>
+        in.Internal.addDownstream(inner)
+        mapped()
+      }(ctx)
+    }
+
+    /**
+     * Creates a new [[Rx]] which depends on this one's value, transformed by `f`.
+     */
+    protected def flatMap0[T, V, In <: Node[T]](in: In)(mapped: RxCtx => V)(implicit ctx: RxCtx): Rx[V] = {
+      Rx.build { inner =>
+        in.Internal.addDownstream(inner)
+        mapped(inner)
+      }(ctx)
+    }
+
 
     /**
      * Given a `start` value, uses the current and subsequent values of this [[Rx]]
      * to transform the start value using `f`.
      */
-    def fold[V](start: M[V])(f: (M[V], M[T]) => M[V])(implicit ctx: RxCtx) = {
+    protected def fold0[T, V, In <: Node[T], ChkV](in: In, start: ChkV, next: ChkV => ChkV, output: ChkV => V)(implicit ctx: RxCtx): Rx[V] = {
       var prev = start
-      Rx.build { innerCtx =>
-        prev = f(prev, valFunc(n))
-        normFunc(prev)
+      Rx.build { inner =>
+        in.Internal.addDownstream(inner)
+        prev = next(prev)
+        output(prev)
       }(ctx)
     }
 
     /**
      * Combines subsequent values of this [[Node]] using `f`
      */
-    def reduce(f: (M[T], M[T]) => M[T])(implicit ctx: RxCtx) = {
+    protected def reduce0[T, In <: Node[T], Chk](in: In, input: In => Chk, output: Chk => T)(next: Chk => Chk)(implicit ctx: RxCtx): Rx[T] = {
       var init = true
-      var prev = valFunc(n)
+      var prev = input(in)
       Rx.build { innerCtx =>
-        n.Internal.addDownstream(innerCtx)
+        in.Internal.addDownstream(innerCtx)
         if (init) {
           init = false
-          normFunc(valFunc(n))
+          output(prev)
         } else {
-          prev = f(prev, valFunc(n))
-          normFunc(prev)
+          prev = next(prev)
+          output(prev)
         }
       }(ctx)
     }
@@ -162,22 +84,72 @@ package object rx {
      * Creates an [[Obs]] that runs the given function with the value
      * of this [[Node]]
      */
-    def foreach(f: M[T] => Unit) = {
-      n.trigger(f(valFunc(n)))
+    protected def foreach0[In <: Node[_]](in: In)(exec: => Unit) = {
+      in.trigger(exec)
     }
+  }
+
+  class SafeOps[T](r: Rx[T]) extends GenericOps {
+
+    def map[V](f: Try[T] => Try[V])(implicit ctx: RxCtx): Rx[V] =
+      map0[T,V,Rx[T]](r) { () => f(r.toTry).get }
+
+    def flatMap[V](f: Try[T] => Rx[V])(implicit ctx: RxCtx): Rx[V] = {
+      flatMap0[T,V,Rx[T]](r) { inner =>
+        val next = f(r.toTry)
+        next()(inner)
+      }
+    }
+
+    def filter(f: Try[T] => Boolean)(implicit ctx: RxCtx): Rx[T] =
+      filter0[T,Rx[T],Try[T]](r,() => r.toTry)(f)
+
+    def fold[V](start: Try[V])(f: ((Try[V], Try[T]) => Try[V]))(implicit ctx: RxCtx): Rx[V] =
+      fold0[T,V,Rx[T],Try[V]](r, start, v => f(v,r.toTry), _.get)
+
+    def reduce(f: (Try[T], Try[T]) => Try[T])(implicit ctx: RxCtx): Rx[T] =
+      reduce0[T,Rx[T], Try[T]](r,_.toTry,_.get)(t => f(t,r.toTry))
+
+    def foreach(f: T => Unit) = foreach0[Rx[T]](r)(r.toTry.foreach(f))
+  }
+
+
+  class NodeOps[T, N[T] <: Node[T]](n: N[T]) extends GenericOps {
+
+    def map[V](f: T => V)(implicit ctx: RxCtx): Rx[V] = map0[T,V,N[T]](n) { () => f(n.now) }
+
+    def flatMap[V](f: T => Rx[V])(implicit ctx: RxCtx): Rx[V] = {
+      flatMap0[T,V,N[T]](n) { inner =>
+        val next = f(n.now)
+        next()(inner)
+      }
+    }
+
+    def filter(f: T => Boolean)(implicit ctx: RxCtx): Rx[T] =
+      filter0[T,N[T],T](n,() => n.now)(t => f(t))
+
+
+    def fold[V](start: V)(f: ((V, T) => V))(implicit ctx: RxCtx): Rx[V] =
+      fold0[T,V,N[T],V](n,start,v => f(v,n.now), v => v)
+
+
+    def reduce(f: (T, T) => T)(implicit ctx: RxCtx): Rx[T] =
+      reduce0[T,N[T],T](n,_.now,t=>t)(t => f(t,n.now))
+
+    def foreach(f: T => Unit) = foreach0[N[T]](n)(f(n.now))
   }
 
   /**
    * All [[Node]]s have a set of operations you can perform on them, e.g. `map` or `filter`
    */
-  implicit class NodePlus[T](n: Node[T])
-    extends GenericOps[Id, Node, T](n, GenericFunc.Apply, GenericFunc.Normal)
+  implicit class NodePlus[T](n: Node[T]) extends NodeOps[T, Node](n)
+
   /**
    * All [[Rx]]s have a set of operations you can perform on them via `myRx.all.*`,
    * which lifts the operation to working on a `Try[T]` rather than plain `T`s
    */
-  implicit class RxPlus[T](n: Rx[T]){
-    object all extends GenericOps[Try, Rx, T](n, GenericFunc.toTryMark, GenericFunc.Try)
+  implicit class RxPlus[T](n: Rx[T]) {
+    object all extends SafeOps[T](n)
   }
 
 }

@@ -9,12 +9,14 @@ import rx.async._
 object EventedTests extends TestSuite {
 
   implicit val todo = new AsyncScheduler(Executors.newSingleThreadScheduledExecutor(),ExecutionContext.Implicits.global)
+  implicit val testctx = RxCtx.safe()
+
 
   def tests = TestSuite {
     "debounce" - {
       "simple" - {
         val a = Var(10)
-        val b = a.debounce(100.millis)
+        val b = a.debounce(200.millis)
         a() = 5
         assert(b.now == 10)
 
