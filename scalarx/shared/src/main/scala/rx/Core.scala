@@ -165,7 +165,6 @@ class Var[T](initialValue: T) extends Node[T]{
   def update(newValue: T): Unit = {
     if (Internal.value != newValue) {
       Internal.value = newValue
-
       Node.doRecalc(Internal.downStream.toSet, Internal.observers)
     }
   }

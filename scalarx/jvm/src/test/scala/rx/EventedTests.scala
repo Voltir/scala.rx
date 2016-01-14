@@ -150,7 +150,6 @@ object EventedTests extends TestSuite {
       var count = 0
       val timer = Timer(100.milli)
       timer.foreach(i => count += 1)
-      //timer.map(a => a).map(a => a) dies?
       eventually(count == 2)
       eventually(count == 4)
       timer.kill()

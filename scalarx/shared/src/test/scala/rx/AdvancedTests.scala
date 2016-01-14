@@ -286,6 +286,19 @@ object AdvancedTests extends TestSuite{
         assert(c.now == 1337)
         assert(d.toTry == Success("java.lang.ArithmeticException: / by zero"))
       }
+      "flatMap" - {
+        val a = Var(10)
+        val b = for {
+          aa <- a
+          bb <- Rx { a() + 5}
+          cc <- Var(1).map(_*2)
+        } yield {
+          aa + bb + cc
+        }
+        assert(b.now == 10 + 15 + 2)
+        a() = 100
+        assert(b.now == 100 + 105 + 2)
+      }
       "filter" - {
         val a = Var(10)
         val b = a.filter(_ > 5)
@@ -429,6 +442,24 @@ object AdvancedTests extends TestSuite{
         c.now._1.now == 5,
         c.now._2 == -1
       )
+    }
+    "compileTimeChecks" - {
+      "simpleDef" - {
+        compileError("def fail() = Rx { }")
+      }
+      "nestedDef" - {
+        compileError("object Fail { def fail() = Rx { } }")
+      }
+      "nestedSafeCtx" - {
+        compileError("object Fail { def fail() = { implicit val ctx = RxCtx.safe() ; Rx { } } }")
+      }
+      "simpleUnsafeDef" - {
+        //heh
+        compileError("""compileError("def ok() = Rx.unsafe { }")""")
+      }
+      "nestedUnsafeCtx" - {
+        compileError("""compileError("object Fail { def fail() = { implicit val ctx = RxCtx.Unsafe ; Rx { } } }")""")
+      }
     }
     "leakyRxCtx" - {
       var testY = 0
