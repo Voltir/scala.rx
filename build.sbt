@@ -1,4 +1,3 @@
-crossScalaVersions := Seq("2.10.7", "2.11.12", "2.12.4")
 
 lazy val root = project
   .in(file("."))
@@ -48,7 +47,7 @@ lazy val scalarx = crossProject.settings(
   organization := "io.github.voltir",
   organizationName := "Nick Childers",
   name := "scalarx",
-  scalaVersion := "2.12.4",
+  crossScalaVersions := Seq("2.11.12", "2.12.4"),
   version := "0.3.3-SNAPSHOT",
   libraryDependencies ++= Seq(
     "org.scala-lang" % "scala-reflect" % scalaVersion.value % "provided",
