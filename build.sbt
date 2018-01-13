@@ -10,6 +10,7 @@ lazy val scalarx = crossProject.settings(
   libraryDependencies ++= Seq(
     "com.github.julien-truffaut" %%% "monocle-core" % monocleVersion,
     "com.github.julien-truffaut" %%% "monocle-macro" % monocleVersion % "test",
+    "com.lihaoyi" %%% "pprint" % "0.5.3",
 
     "org.scala-lang" % "scala-reflect" % scalaVersion.value % "provided",
     "org.scala-lang" % "scala-compiler" % scalaVersion.value % "provided",
@@ -69,3 +70,37 @@ lazy val scalarx = crossProject.settings(
 
 lazy val js = scalarx.js
 lazy val jvm = scalarx.jvm
+
+lazy val foo = project.settings(
+  scalaVersion := "2.12.4",
+  libraryDependencies ++= Seq(
+    "com.github.julien-truffaut" %%% "monocle-core" % monocleVersion,
+    "com.github.julien-truffaut" %%% "monocle-macro" % monocleVersion % "test",
+    "com.lihaoyi" %%% "pprint" % "0.5.3",
+
+    "org.scala-lang" % "scala-reflect" % scalaVersion.value % "provided",
+    "org.scala-lang" % "scala-compiler" % scalaVersion.value % "provided",
+    "com.lihaoyi" %%% "utest" % "0.6.3" % "test",
+    "com.lihaoyi" %% "acyclic" % "0.1.7" % "provided"
+  ),
+  addCompilerPlugin("com.lihaoyi" %% "acyclic" % "0.1.7"),
+  testFrameworks += new TestFramework("utest.runner.Framework"),
+  autoCompilerPlugins := true,
+
+  scalacOptions ++=
+    "-encoding" :: "UTF-8" ::
+      "-unchecked" ::
+      "-deprecation" ::
+      "-explaintypes" ::
+      "-feature" ::
+      "-language:_" ::
+      "-Xcheckinit" ::
+      "-Xfuture" ::
+      "-Xlint:-unused" :: // too many false positives for unused because of acyclic, macros, local vals in tests
+      "-Ypartial-unification" ::
+      "-Yno-adapted-args" ::
+      "-Ywarn-infer-any" ::
+      "-Ywarn-nullary-override" ::
+      "-Ywarn-nullary-unit" ::
+      Nil
+).dependsOn(jvm)

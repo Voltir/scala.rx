@@ -10,6 +10,7 @@ import scala.reflect.macros._
   */
 object Operators {
   def initialize(c: blackbox.Context)(f: c.Tree, owner: c.Tree) = {
+    println("-- Called: initialize --")
     import c.universe._
     val data = c.inferImplicitValue(c.weakTypeOf[rx.Ctx.Data])
     val newDataCtx =  c.freshName(TermName("rxDataCtx"))
@@ -51,13 +52,16 @@ object Operators {
          (f: c.Expr[Wrap[T] => Wrap[V]])
          (ownerCtx: c.Expr[rx.Ctx.Owner])
          (implicit w: c.WeakTypeTag[Wrap[_]]): c.Expr[Rx.Dynamic[V]] = {
-
     import c.universe._
+    println(s"-- Called: map ${c.prefix}--")
+
     val (call, newCtx, enclosingCtx) = initialize(c)(f.tree, ownerCtx.tree)
 
-    Utils.resetExpr[Rx.Dynamic[V]](c)(q"""
+   val blah =  Utils.resetExpr[Rx.Dynamic[V]](c)(q"""
       ${c.prefix}.macroImpls.mappedImpl($call, $enclosingCtx)
     """)
+    pprint.log(show(blah.tree))
+    blah
   }
 
   def flatMap[T: c.WeakTypeTag, V: c.WeakTypeTag, Wrap[_]]
@@ -66,13 +70,16 @@ object Operators {
              (ownerCtx: c.Expr[rx.Ctx.Owner])
              (implicit w: c.WeakTypeTag[Wrap[_]])
              : c.Expr[Rx.Dynamic[V]] = {
-
     import c.universe._
+    println(s"-- Called: flatMap (${c.prefix}) --")
+
     val (call, newCtx, enclosingCtx) = initialize(c)(f.tree, ownerCtx.tree)
 
-    resetExpr[Rx.Dynamic[V]](c)(q"""
+    val blah = resetExpr[Rx.Dynamic[V]](c)(q"""
       ${c.prefix}.macroImpls.flatMappedImpl($call, $enclosingCtx)
     """)
+    pprint.log(show(blah.tree))
+    blah
   }
 
 
@@ -112,9 +119,11 @@ trait Operators[T, Wrap[_]] {
                         enclosing: rx.Ctx.Owner): Rx.Dynamic[V] = {
 
     Rx.build { (ownerCtx, dataCtx) =>
-      prefix.addDownstream(dataCtx)
-      this.unwrap(call(ownerCtx, dataCtx)(this.get(prefix))).apply()(dataCtx)
-    }(enclosing)
+        prefix.addDownstream(dataCtx)
+        val inner = this.unwrap(call(ownerCtx, dataCtx)(this.get(prefix)))
+        inner.downStream.add(dataCtx.contextualRx)
+        inner.now
+      }(enclosing)
   }
 
   def mappedImpl[V](call: (rx.Ctx.Owner, rx.Ctx.Data) => Wrap[T] => Wrap[V],

@@ -35,7 +35,7 @@ object Factories {
                   (ownerCtx: c.Expr[rx.Ctx.Owner])
                   : c.Expr[Rx.Dynamic[T]] = {
     import c.universe._
-
+    println("-- Called: rxApplyMacro --")
     val dataCtx = c.inferImplicitValue(c.weakTypeOf[rx.Ctx.Data])
     val newDataCtx =  c.freshName(TermName("rxDataCtx"))
     val newOwnerCtx =  c.freshName(TermName("rxOwnerCtx"))

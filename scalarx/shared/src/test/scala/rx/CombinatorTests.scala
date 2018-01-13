@@ -352,8 +352,10 @@ object CombinatorTests extends TestSuite{
       "flatMap" - {
         val v = Var(Var(1))
         val a = v.flatMap(_.map("a"*_))
+        pprint.log(a.now)
         assert(a.now == "a")
         v.now() = 5
+        pprint.log(a.now)
         assert(a.now == "a"*5)
         v() = Var(3)
         assert(a.now == "aaa")
