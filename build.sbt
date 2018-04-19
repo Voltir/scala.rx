@@ -77,41 +77,41 @@ lazy val scalarx = crossProject.settings(
     "-Ypartial-unification" ::
     "-Yno-adapted-args" ::
     "-Ywarn-infer-any" ::
+    "-Ywarn-value-discard" ::
     "-Ywarn-nullary-override" ::
     "-Ywarn-nullary-unit" ::
-    Nil,
+    Nil
 
-  // Sonatype
-  publishTo := Some("releases"  at "https://oss.sonatype.org/service/local/staging/deploy/maven2"),
-  pomExtra :=
-    <url>https://github.com/lihaoyi/scalatags</url>
-      <licenses>
-        <license>
-          <name>MIT license</name>
-          <url>http://www.opensource.org/licenses/mit-license.php</url>
-        </license>
-      </licenses>
-      <scm>
-        <url>git://github.com/lihaoyi/scalatags.git</url>
-        <connection>scm:git://github.com/lihaoyi/scalatags.git</connection>
-      </scm>
-      <developers>
-        <developer>
-          <id>lihaoyi</id>
-          <name>Li Haoyi</name>
-          <url>https://github.com/lihaoyi</url>
-        </developer>
-      </developers>
+//  // Sonatype
+//  publishTo := Some("releases"  at "https://oss.sonatype.org/service/local/staging/deploy/maven2"),
+//  pomExtra :=
+//    <url>https://github.com/lihaoyi/scalatags</url>
+//      <licenses>
+//        <license>
+//          <name>MIT license</name>
+//          <url>http://www.opensource.org/licenses/mit-license.php</url>
+//        </license>
+//      </licenses>
+//      <scm>
+//        <url>git://github.com/lihaoyi/scalatags.git</url>
+//        <connection>scm:git://github.com/lihaoyi/scalatags.git</connection>
+//      </scm>
+//      <developers>
+//        <developer>
+//          <id>lihaoyi</id>
+//          <name>Li Haoyi</name>
+//          <url>https://github.com/lihaoyi</url>
+//        </developer>
+//      </developers>
 ).jsSettings(sonatypePublish)
  .jsSettings(
   scalaJSStage in Test := FullOptStage,
-  scalacOptions ++= (if (isSnapshot.value) Seq.empty else Seq({
-    val a = baseDirectory.value.toURI.toString.replaceFirst("[^/]+/?$", "")
-    val g = "https://raw.githubusercontent.com/lihaoyi/scala.rx"
-    s"-P:scalajs:mapSourceURI:$a->$g/v${version.value}/"
-  }))
- )
- .jvmSettings(sonatypePublish)
+  scalacOptions += {
+    val local = baseDirectory.value.toURI
+    val remote = s"https://raw.githubusercontent.com/lihaoyi/scala.rx/${git.gitHeadCommit.value.get}/"
+    s"-P:scalajs:mapSourceURI:$local->$remote"
+  }
+).jvmSettings(sonatypePublish)
 
 lazy val js = scalarx.js
 lazy val jvm = scalarx.jvm
