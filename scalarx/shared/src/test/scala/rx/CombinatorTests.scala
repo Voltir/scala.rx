@@ -1,9 +1,9 @@
 package rx
 
-//
 import utest._
 
 import scala.util.{Failure, Success, Try}
+import collection.mutable
 
 object CombinatorTests extends TestSuite{
 
@@ -71,6 +71,30 @@ object CombinatorTests extends TestSuite{
         assert(d.now == 6)
         assert(e.now == 5)
       }
+      "mapObs" - {
+        val v1 = Var(0)
+        val v2 = v1.map(identity)
+        val v3 = v1.map(identity).map(identity).map(identity)
+        def q(implicit trackDependency: Ctx.Data) = {
+          if (v1() == 0) v2()
+          else {
+            if (v3() != v2())
+              103
+            else
+              17
+          }
+        }
+        val v = Rx { q }
+        var result = List.empty[Int]
+        val obs = v.trigger { result = result :+ v.now }
+        assert(result == List(0))
+        v1() = 1
+        assert(result == List(0,17))
+        v1() = 2
+        assert(result == List(0,17))
+        v1() = 3
+        assert(result == List(0,17))
+      }
       "mapAll" - {
         val a = Var(10L)
         val b = Rx{ 100 / a() }
@@ -100,6 +124,42 @@ object CombinatorTests extends TestSuite{
         assert(b.now == 10 + 15 + 2)
         a() = 100
         assert(b.now == 100 + 105 + 2)
+      }
+      "flatMapDiamondCase" - {
+        val rxa = Var(2)
+        val rxb = rxa.map(_ + 1)
+        val rxc = rxa.map(_ + 1)
+
+        val rxTriggered = mutable.ArrayBuffer.empty[(Int,Int)]
+        Rx {
+          val b = rxb()
+          val c = rxc()
+          rxTriggered += ((b,c))
+        }
+
+
+        val flatMapTriggered = mutable.ArrayBuffer.empty[(Int,Int)]
+        for {
+          b <- rxb
+          c <- rxc
+        } yield { 
+          flatMapTriggered += ((b,c)) 
+        }
+
+        assert(rxTriggered.toList       == List((3,3)))
+        assert(flatMapTriggered.toList  == List((3,3)))
+
+        rxa() = 12
+        assert(rxTriggered.toList       == List((3,3), (13,13)))
+        assert(flatMapTriggered.toList  == List((3,3), (13,13)))
+        
+        rxa() = 22
+        assert(rxTriggered.toList       == List((3,3), (13,13), (23,23)))
+        assert(flatMapTriggered.toList  == List((3,3), (13,13), (23,23)))
+
+        rxa() = 32
+        assert(rxTriggered.toList       == List((3,3), (13,13), (23,23), (33,33)))
+        assert(flatMapTriggered.toList  == List((3,3), (13,13), (23,23), (33,33)))
       }
       "flatMapVar" - {
         val a = Var(0)

@@ -121,7 +121,7 @@ object BasicTests extends TestSuite{
         var i = 0
         val o = a.trigger(i += 1)
         assert(
-          a.Internal.observers.size == 1,
+          a.observers.size == 1,
           i == 1
         )
         a() = 2
@@ -129,7 +129,7 @@ object BasicTests extends TestSuite{
         o.kill()
         a() = 3
         assert(
-          a.Internal.observers.size == 0,
+          a.observers.size == 0,
           i == 2
         )
 
@@ -145,6 +145,7 @@ object BasicTests extends TestSuite{
         a() = 0
         intercept[Exception]{
           b.now
+          ()
         }
         assertMatch(b.toTry){case Failure(_) =>}
       }
@@ -222,9 +223,9 @@ object BasicTests extends TestSuite{
       val v = Var(1).toString
       val r = Rx(1).toString
       assert(
-        v.startsWith("Var@"),
+        v.startsWith("v:Var@"),
         v.endsWith("(1)"),
-        r.startsWith("Rx@"),
+        r.startsWith("r:Rx@"),
         r.endsWith("(1)")
       )
       (r.toString, v.toString)
